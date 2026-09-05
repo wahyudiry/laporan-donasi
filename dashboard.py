@@ -22,70 +22,67 @@ def bersihkan_angka(x):
         return 0
 
 # ==============================================
-# 📖 FUNGSI BACA BERKAS DONASI
+# 📖 BACA BERKAS DONASI (tdonasi)
 # ==============================================
 def baca_donasi(berkas):
     try:
         df = pd.read_csv(
             berkas,
-            sep="\\",
-            header=None,
-            usecols=[2, 3, 14, 9, 10, 18, 20, 25],
+            sep='"',               # ← Pemisah tanda kutip
             on_bad_lines="skip",
             encoding="utf-8",
             low_memory=False
         )
-        df.columns = ["tanggal", "nama", "batal", "jumlah", "satuan", "kategori", "akad", "kotacabang"]
+        # Bersihkan nama kolom & ambil yang penting
+        df = df.iloc[:, [2, 3, 8, 9, 10, 17, 19, 5]].copy()
+        df.columns = ["tanggal", "nama", "jumlah", "satuan", "cabang", "kategori", "akad", "kota"]
         
-        df["tanggal"] = pd.to_datetime(df["tanggal"].astype(str).str.replace(",", ""), errors="coerce")
+        df["tanggal"] = pd.to_datetime(df["tanggal"].astype(str).str.replace("\\", ""), errors="coerce")
         df["jumlah"] = df["jumlah"].apply(bersihkan_angka)
-        df["satuan"] = df["satuan"].astype(str).str.replace(",", "").str.strip()
-        df["batal"] = pd.to_numeric(df["batal"], errors="coerce").fillna(0)
-        df = df[(df["satuan"] == "Rupiah") & (df["batal"] == 0)].copy()
+        df["satuan"] = df["satuan"].astype(str).str.replace("\\", "").str.strip()
+        df = df[(df["satuan"].str.contains("Rupiah", case=False, na=True))].copy()
         
         df["tahun"] = df["tanggal"].dt.year
         df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
         df["jenis"] = "DONASI"
         return df
     except Exception as e:
-        st.warning(f"⚠️ {berkas.name}: {str(e)[:60]}...")
+        st.warning(f"⚠️ {berkas.name}: {str(e)[:80]}...")
         return None
 
 # ==============================================
-# 📖 FUNGSI BACA BERKAS KOTAK AMAL
+# 📖 BACA BERKAS KOTAK AMAL (tkotakamal)
 # ==============================================
 def baca_kotakamal(berkas):
     try:
         df = pd.read_csv(
             berkas,
-            sep="\\",
-            header=None,
-            usecols=[2, 3, 14, 9, 10, 18, 20, 25],
+            sep='"',               # ← Pemisah tanda kutip
             on_bad_lines="skip",
             encoding="utf-8",
             low_memory=False
         )
-        df.columns = ["tanggal", "nama", "batal", "jumlah", "satuan", "kategori", "akad", "kotacabang"]
+        # Posisi kolom berbeda dengan tdonasi!
+        df = df.iloc[:, [2, 3, 10, 7, 8, 4]].copy()
+        df.columns = ["tanggal", "nama", "jumlah", "kategori", "akad", "cabang"]
+        df["satuan"] = "Rupiah"
         
-        df["tanggal"] = pd.to_datetime(df["tanggal"].astype(str).str.replace(",", ""), errors="coerce")
+        df["tanggal"] = pd.to_datetime(df["tanggal"].astype(str).str.replace("\\", ""), errors="coerce")
         df["jumlah"] = df["jumlah"].apply(bersihkan_angka)
-        df["satuan"] = df["satuan"].astype(str).str.replace(",", "").str.strip()
-        df["batal"] = pd.to_numeric(df["batal"], errors="coerce").fillna(0)
-        df = df[(df["satuan"] == "Rupiah") & (df["batal"] == 0)].copy()
         
         df["tahun"] = df["tanggal"].dt.year
         df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
         df["jenis"] = "KOTAK AMAL"
         return df
     except Exception as e:
-        st.warning(f"⚠️ {berkas.name}: {str(e)[:60]}...")
+        st.warning(f"⚠️ {berkas.name}: {str(e)[:80]}...")
         return None
 
 # ==============================================
 # 📤 PILIH BERKAS CSV
 # ==============================================
 st.header("📤 PILIH BERKAS CSV ANDA")
-st.info("Pilih SEMUA berkas sekaligus: tdonasi_*.csv DAN tkotakamal_*.csv")
+st.info("Pilih SEMUA berkas: tdonasi_*.csv DAN tkotakamal_*.csv")
 
 berkas_list = st.file_uploader(
     "Pilih Semua Berkas CSV",
@@ -110,12 +107,12 @@ for berkas in berkas_list:
     nama = berkas.name.lower()
     if nama.startswith("tdonasi_"):
         df = baca_donasi(berkas)
-        if df is not None:
+        if df is not None and len(df) > 0:
             semua_donasi.append(df)
             st.write(f"✅ {berkas.name} → {len(df):,} baris")
     elif nama.startswith("tkotakamal_"):
         df = baca_kotakamal(berkas)
-        if df is not None:
+        if df is not None and len(df) > 0:
             semua_kotak.append(df)
             st.write(f"✅ {berkas.name} → {len(df):,} baris")
     else:
@@ -154,7 +151,7 @@ df_filter = df[
 ]
 
 # ==============================================
-# 💵 RINGKASAN
+# 💵 RINGKASAN ANGKA
 # ==============================================
 col1, col2, col3, col4 = st.columns(4)
 total_donasi = df_filter[df_filter["jenis"]=="DONASI"]["jumlah"].sum()
@@ -195,10 +192,10 @@ fig = px.bar(per_akad, x="akad", y="jumlah", color="akad",
 fig.update_layout(showlegend=False)
 st.plotly_chart(fig, use_container_width=True)
 
-st.subheader("🏢 PER CABANG")
-per_cabang = df_filter.groupby("kotacabang")["jumlah"].sum().reset_index()
+st.subheader("🏢 PER CABANG/KANTOR")
+per_cabang = df_filter.groupby("cabang")["jumlah"].sum().reset_index()
 per_cabang = per_cabang.query("jumlah > 0")
-fig = px.bar(per_cabang, x="kotacabang", y="jumlah", color="kotacabang",
+fig = px.bar(per_cabang, x="cabang", y="jumlah", color="cabang",
              text_auto=",.0f", title="Total per Cabang/Kantor")
 fig.update_layout(showlegend=False)
 st.plotly_chart(fig, use_container_width=True)
