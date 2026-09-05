@@ -1,121 +1,136 @@
 import pandas as pd
+import plotly.express as px
+import streamlit as st
 
 # ==============================================
-# 🔑 LOKASI FOLDER BERKAS CSV ANDA
+# 🔑 PENGATURAN HALAMAN
 # ==============================================
-folder = "D:/Data_Donasi/"
+st.set_page_config(page_title="Laporan Donasi & Kotak Amal", page_icon="📊", layout="wide")
+st.title("📊 LAPORAN DONASI & KOTAK AMAL")
+st.markdown("---")
 
 # ==============================================
-# 🧹 FUNGSI BERSIHKAN ANGKA
+# 📖 BACA DATA LANGSUNG DARI BERKAS
 # ==============================================
-def bersihkan_angka(x):
-    if pd.isna(x):
-        return 0
-    teks = str(x).replace(",", "").replace(".", "").replace("Rp", "").strip()
-    try:
-        return float(teks)
-    except:
-        return 0
+@st.cache_data
+def baca_data():
+    df = pd.read_csv("data_laporan.csv", encoding="utf-8")
+    df["tanggal"] = pd.to_datetime(df["tanggal"], errors="coerce")
+    df["tahun"] = df["tanggal"].dt.year
+    df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
+    return df
+
+st.info("🔄 Sedang memuat data... mohon sabar sebentar...")
+df = baca_data()
+
+if df["tanggal"].isna().all():
+    st.error("❌ Tanggal tidak terbaca! Periksa isi berkas data_laporan.csv")
+    st.stop()
+
+st.success(f"✅ DATA SIAP! Total {len(df):,} baris | {df['tanggal'].min().date()} s/d {df['tanggal'].max().date()}")
+st.markdown("---")
 
 # ==============================================
-# 📖 BACA & GABUNGKAN SEMUA BERKAS DONASI
+# 🔍 FILTER
 # ==============================================
-# DAFTAR NAMA BERKAS DONASI — tambah/kurangi sesuai yang Anda miliki!
-daftar_donasi = [
-    "tdonasi_2024-01.csv",
-    "tdonasi_2024-02.csv",
-    "tdonasi_2024-03.csv",
-    "tdonasi_2024-04.csv",
-    "tdonasi_2024-05.csv",
-    "tdonasi_2024-06.csv",
-    "tdonasi_2024-07.csv",
-    "tdonasi_2024-08.csv",
-    "tdonasi_2024-09.csv",
-    "tdonasi_2024-10.csv",
-    "tdonasi_2024-11.csv",
-    "tdonasi_2024-12.csv",
-    "tdonasi_2025-01.csv",
-    "tdonasi_2025-02.csv",
-    "tdonasi_2025-03.csv",
-    "tdonasi_2025-04.csv",
-    "tdonasi_2025-05.csv",
-    "tdonasi_2025-06.csv",
-    "tdonasi_2025-07.csv",
-    # Tambahkan baris di atas untuk bulan berikutnya
-]
+st.sidebar.header("🔍 PILIH DATA")
 
-# DAFTAR NAMA BERKAS KOTAK AMAL
-daftar_kotak = [
-    "tkotakamal_2024-01.csv",
-    "tkotakamal_2024-02.csv",
-    "tkotakamal_2024-03.csv",
-    "tkotakamal_2024-04.csv",
-    "tkotakamal_2024-05.csv",
-    "tkotakamal_2024-06.csv",
-    "tkotakamal_2024-07.csv",
-    "tkotakamal_2024-08.csv",
-    "tkotakamal_2024-09.csv",
-    "tkotakamal_2024-10.csv",
-    "tkotakamal_2024-11.csv",
-    "tkotakamal_2024-12.csv",
-    "tkotakamal_2025-01.csv",
-    "tkotakamal_2025-02.csv",
-    "tkotakamal_2025-03.csv",
-    "tkotakamal_2025-04.csv",
-    # Tambahkan baris di atas untuk bulan berikutnya
-]
-
-# ==============================================
-# 🔄 PROSES SEMUA BERKAS
-# ==============================================
-semua_data = []
-
-print("🔄 SEDANG MEMPROSES BERKAS DONASI...")
-for nama in daftar_donasi:
-    try:
-        lokasi = folder + nama
-        df = pd.read_csv(lokasi, sep='"', on_bad_lines="skip", encoding="utf-8", low_memory=False)
-        df = df.iloc[:, [2, 3, 8, 9, 10, 17, 19, 5]].copy()
-        df.columns = ["tanggal", "nama", "jumlah", "satuan", "cabang", "kategori", "akad", "kota"]
-        df["tanggal"] = pd.to_datetime(df["tanggal"].astype(str).str.replace("\\", ""), errors="coerce")
-        df["jumlah"] = df["jumlah"].apply(bersihkan_angka)
-        df = df[df["jumlah"] > 0].copy()
-        df["jenis"] = "DONASI"
-        df["tahun"] = df["tanggal"].dt.year
-        df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
-        semua_data.append(df)
-        print(f"✅ {nama} → {len(df):,} baris")
-    except Exception as e:
-        print(f"⚠️ {nama}: {str(e)[:60]}")
-
-print("\n🔄 SEDANG MEMPROSES BERKAS KOTAK AMAL...")
-for nama in daftar_kotak:
-    try:
-        lokasi = folder + nama
-        df = pd.read_csv(lokasi, sep='"', on_bad_lines="skip", encoding="utf-8", low_memory=False)
-        df = df.iloc[:, [2, 3, 10, 7, 8, 4]].copy()
-        df.columns = ["tanggal", "nama", "jumlah", "kategori", "akad", "cabang"]
-        df["tanggal"] = pd.to_datetime(df["tanggal"].astype(str).str.replace("\\", ""), errors="coerce")
-        df["jumlah"] = df["jumlah"].apply(bersihkan_angka)
-        df = df[df["jumlah"] > 0].copy()
-        df["jenis"] = "KOTAK AMAL"
-        df["satuan"] = "Rupiah"
-        df["tahun"] = df["tanggal"].dt.year
-        df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
-        semua_data.append(df)
-        print(f"✅ {nama} → {len(df):,} baris")
-    except Exception as e:
-        print(f"⚠️ {nama}: {str(e)[:60]}")
-
-# ==============================================
-# 💾 GABUNGKAN & SIMPAN BERKAS BARU
-# ==============================================
-if len(semua_data) == 0:
-    print("\n❌ TIDAK ADA DATA YANG BERHASIL DIBACA!")
+if "jenis" in df.columns:
+    jenis_unik = sorted(df["jenis"].dropna().unique())
+    jenis_pilih = st.sidebar.multiselect("Jenis Data", jenis_unik, default=jenis_unik)
 else:
-    df_gabung = pd.concat(semua_data, ignore_index=True)
-    df_gabung.to_csv("data_laporan.csv", index=False, encoding="utf-8")
-    print(f"\n🎉 ✅ SELESAI!")
-    print(f"📊 TOTAL DATA: {len(df_gabung):,} baris")
-    print(f"📅 PERIODE: {df_gabung['tanggal'].min().date()} s/d {df_gabung['tanggal'].max().date()}")
-    print(f"💾 BERKAS TERSIMPAN: data_laporan.csv")
+    jenis_pilih = ["DONASI", "KOTAK AMAL"]
+
+tahun_tersedia = sorted(df["tahun"].dropna().unique().astype(int))
+bulan_tersedia = sorted(df["bulan"].dropna().unique())
+
+tahun_pilih = st.sidebar.multiselect("Pilih Tahun", tahun_tersedia, default=tahun_tersedia)
+bulan_pilih = st.sidebar.multiselect("Pilih Bulan", bulan_tersedia, default=bulan_tersedia)
+
+# Terapkan filter
+df_filter = df[
+    (df["tahun"].isin(tahun_pilih)) &
+    (df["bulan"].isin(bulan_pilih))
+]
+
+if "jenis" in df.columns and len(jenis_pilih) > 0:
+    df_filter = df_filter[df_filter["jenis"].isin(jenis_pilih)]
+
+# ==============================================
+# 💵 RINGKASAN ANGKA
+# ==============================================
+col1, col2, col3, col4 = st.columns(4)
+
+if "jenis" in df.columns:
+    total_donasi = df_filter[df_filter["jenis"]=="DONASI"]["jumlah"].sum()
+    total_kotak = df_filter[df_filter["jenis"]=="KOTAK AMAL"]["jumlah"].sum()
+else:
+    total_donasi = df_filter["jumlah"].sum()
+    total_kotak = 0
+
+total_semua = df_filter["jumlah"].sum()
+jumlah_transaksi = len(df_filter)
+
+col1.metric("💰 TOTAL DONASI", f"Rp {total_donasi:,.0f}")
+col2.metric("📦 TOTAL KOTAK AMAL", f"Rp {total_kotak:,.0f}")
+col3.metric("🏆 TOTAL KESELURUHAN", f"Rp {total_semua:,.0f}")
+col4.metric("👥 JUMLAH TRANSAKSI", f"{jumlah_transaksi:,}")
+
+st.markdown("---")
+
+# ==============================================
+# 📊 GRAFIK PER BULAN
+# ==============================================
+st.subheader("📊 PERKEMBANGAN PER BULAN")
+if "jenis" in df.columns:
+    per_bulan = df_filter.groupby(["bulan", "jenis"])["jumlah"].sum().reset_index()
+    fig = px.bar(per_bulan, x="bulan", y="jumlah", color="jenis", barmode="group",
+                 text_auto=",.0f", title="Total Donasi & Kotak Amal per Bulan")
+else:
+    per_bulan = df_filter.groupby("bulan")["jumlah"].sum().reset_index()
+    fig = px.bar(per_bulan, x="bulan", y="jumlah", text_auto=",.0f",
+                 title="Total Donasi per Bulan")
+st.plotly_chart(fig, use_container_width=True)
+
+# ==============================================
+# 📊 GRAFIK PER KATEGORI
+# ==============================================
+if "kategori" in df.columns:
+    st.subheader("📊 DONASI PER KATEGORI")
+    per_kategori = df_filter.groupby("kategori")["jumlah"].sum().reset_index()
+    per_kategori = per_kategori.query("jumlah > 0")
+    if len(per_kategori) > 0:
+        fig = px.bar(per_kategori, x="kategori", y="jumlah", color="kategori",
+                     text_auto=",.0f", title="Total per Kategori")
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+# ==============================================
+# 📊 GRAFIK PER JENIS AKAD
+# ==============================================
+if "akad" in df.columns:
+    st.subheader("📊 PER JENIS AKAD")
+    per_akad = df_filter.groupby("akad")["jumlah"].sum().reset_index()
+    per_akad = per_akad.query("jumlah > 0")
+    if len(per_akad) > 0:
+        fig = px.bar(per_akad, x="akad", y="jumlah", color="akad",
+                     text_auto=",.0f", title="Total per Jenis Akad")
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+# ==============================================
+# 📊 GRAFIK PER CABANG
+# ==============================================
+if "cabang" in df.columns:
+    st.subheader("🏢 PER CABANG/KANTOR")
+    per_cabang = df_filter.groupby("cabang")["jumlah"].sum().reset_index()
+    per_cabang = per_cabang.query("jumlah > 0")
+    if len(per_cabang) > 0:
+        fig = px.bar(per_cabang, x="cabang", y="jumlah", color="cabang",
+                     text_auto=",.0f", title="Total per Cabang/Kantor")
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+st.success("✅ LAPORAN SIAP! 🎉")
+st.info("📤 Kirim tautan ini ke atasan — langsung muncul laporan!")
