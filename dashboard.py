@@ -10,127 +10,19 @@ st.title("📊 LAPORAN DONASI & KOTAK AMAL")
 st.markdown("---")
 
 # ==============================================
-# 🧹 FUNGSI BERSIHKAN ANGKA
+# 📖 BACA DATA LANGSUNG DARI BERKAS
 # ==============================================
-def bersihkan_angka(x):
-    if pd.isna(x):
-        return 0
-    teks = str(x).replace(",", "").replace(".", "").replace("Rp", "").strip()
-    try:
-        return float(teks)
-    except:
-        return 0
+@st.cache_data
+def baca_data():
+    df = pd.read_csv("data_laporan.csv", encoding="utf-8")
+    df["tanggal"] = pd.to_datetime(df["tanggal"], errors="coerce")
+    df["tahun"] = df["tanggal"].dt.year
+    df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
+    return df
 
-# ==============================================
-# 📖 BACA BERKAS DONASI (tdonasi)
-# ==============================================
-def baca_donasi(berkas):
-    try:
-        df = pd.read_csv(
-            berkas,
-            sep='"',               # ← Pemisah tanda kutip
-            on_bad_lines="skip",
-            encoding="utf-8",
-            low_memory=False
-        )
-        # Bersihkan nama kolom & ambil yang penting
-        df = df.iloc[:, [2, 3, 8, 9, 10, 17, 19, 5]].copy()
-        df.columns = ["tanggal", "nama", "jumlah", "satuan", "cabang", "kategori", "akad", "kota"]
-        
-        df["tanggal"] = pd.to_datetime(df["tanggal"].astype(str).str.replace("\\", ""), errors="coerce")
-        df["jumlah"] = df["jumlah"].apply(bersihkan_angka)
-        df["satuan"] = df["satuan"].astype(str).str.replace("\\", "").str.strip()
-        df = df[(df["satuan"].str.contains("Rupiah", case=False, na=True))].copy()
-        
-        df["tahun"] = df["tanggal"].dt.year
-        df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
-        df["jenis"] = "DONASI"
-        return df
-    except Exception as e:
-        st.warning(f"⚠️ {berkas.name}: {str(e)[:80]}...")
-        return None
-
-# ==============================================
-# 📖 BACA BERKAS KOTAK AMAL (tkotakamal)
-# ==============================================
-def baca_kotakamal(berkas):
-    try:
-        df = pd.read_csv(
-            berkas,
-            sep='"',               # ← Pemisah tanda kutip
-            on_bad_lines="skip",
-            encoding="utf-8",
-            low_memory=False
-        )
-        # Posisi kolom berbeda dengan tdonasi!
-        df = df.iloc[:, [2, 3, 10, 7, 8, 4]].copy()
-        df.columns = ["tanggal", "nama", "jumlah", "kategori", "akad", "cabang"]
-        df["satuan"] = "Rupiah"
-        
-        df["tanggal"] = pd.to_datetime(df["tanggal"].astype(str).str.replace("\\", ""), errors="coerce")
-        df["jumlah"] = df["jumlah"].apply(bersihkan_angka)
-        
-        df["tahun"] = df["tanggal"].dt.year
-        df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
-        df["jenis"] = "KOTAK AMAL"
-        return df
-    except Exception as e:
-        st.warning(f"⚠️ {berkas.name}: {str(e)[:80]}...")
-        return None
-
-# ==============================================
-# 📤 PILIH BERKAS CSV
-# ==============================================
-st.header("📤 PILIH BERKAS CSV ANDA")
-st.info("Pilih SEMUA berkas: tdonasi_*.csv DAN tkotakamal_*.csv")
-
-berkas_list = st.file_uploader(
-    "Pilih Semua Berkas CSV",
-    type=["csv"],
-    accept_multiple_files=True,
-    help="Pilih tdonasi_...csv DAN tkotakamal_...csv sekaligus"
-)
-
-if not berkas_list:
-    st.info("👆 Silakan pilih berkas CSV di atas")
-    st.stop()
-
-# ==============================================
-# 🔄 PROSES SEMUA BERKAS
-# ==============================================
-semua_donasi = []
-semua_kotak = []
-
-st.info(f"📂 {len(berkas_list)} berkas dipilih → sedang diproses...")
-
-for berkas in berkas_list:
-    nama = berkas.name.lower()
-    if nama.startswith("tdonasi_"):
-        df = baca_donasi(berkas)
-        if df is not None and len(df) > 0:
-            semua_donasi.append(df)
-            st.write(f"✅ {berkas.name} → {len(df):,} baris")
-    elif nama.startswith("tkotakamal_"):
-        df = baca_kotakamal(berkas)
-        if df is not None and len(df) > 0:
-            semua_kotak.append(df)
-            st.write(f"✅ {berkas.name} → {len(df):,} baris")
-    else:
-        st.info(f"ℹ️ Lewati: {berkas.name}")
-
-# Gabungkan semua
-semua = []
-if len(semua_donasi) > 0:
-    semua.extend(semua_donasi)
-if len(semua_kotak) > 0:
-    semua.extend(semua_kotak)
-
-if len(semua) == 0:
-    st.error("❌ Tidak ada data yang berhasil dibaca!")
-    st.stop()
-
-df = pd.concat(semua, ignore_index=True)
-st.success(f"✅ SELESAI! Total {len(df):,} baris data | {df['tanggal'].min().date()} s/d {df['tanggal'].max().date()}")
+st.info("🔄 Sedang memuat data...")
+df = baca_data()
+st.success(f"✅ DATA SIAP! Total {len(df):,} baris | {df['tanggal'].min().date()} s/d {df['tanggal'].max().date()}")
 st.markdown("---")
 
 # ==============================================
@@ -201,4 +93,5 @@ fig.update_layout(showlegend=False)
 st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
-st.success("✅ SELESAI! 🎉")
+st.success("✅ LAPORAN SIAP DIBAGIKAN! 🎉")
+st.info("📤 Kirim tautan ini ke atasan — langsung muncul laporan tanpa upload berkas!")
