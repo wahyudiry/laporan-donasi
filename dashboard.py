@@ -10,11 +10,11 @@ st.title("📊 LAPORAN DONASI & KOTAK AMAL")
 st.markdown("---")
 
 # ==============================================
-# 📖 BACA DATA — BACA TANGGAL DARI KOLOM ASLI
+# 📖 BACA DATA — SESUAI FORMAT BERKAS BARU!
 # ==============================================
 @st.cache_data
 def baca_data():
-    # Baca berkas CSV dengan pemisah koma
+    # Baca berkas CSV yang sudah dibersihkan
     df = pd.read_csv(
         "data_laporan.csv",
         sep=",",
@@ -25,14 +25,9 @@ def baca_data():
     
     st.info(f"📋 Jumlah kolom terbaca: {len(df.columns)}")
     
-    # === Cari kolom tanggal & BERSIHKAN DARI GARIS MIRING ===
+    # ✅ Baca tanggal — SUDAH FORMAT BENAR: 2024-01-01
     if "tanggal" in df.columns:
-        # Hapus garis miring & spasi kosong, lalu ubah jadi tanggal
-        df["tanggal_bersih"] = df["tanggal"].astype(str).str.replace(r"[\\s'\"-]", "", regex=True).str.strip()
-        # Coba baca dengan berbagai format
-        df["tanggal"] = pd.to_datetime(df["tanggal_bersih"], format="%Y-%m-%d", errors="coerce")
-        df["tanggal"] = df["tanggal"].fillna(pd.to_datetime(df["tanggal_bersih"], errors="coerce"))
-        
+        df["tanggal"] = pd.to_datetime(df["tanggal"], format="%Y-%m-%d", errors="coerce")
         jumlah_tanggal_benar = df["tanggal"].notna().sum()
         st.info(f"📅 Tanggal terbaca benar: {jumlah_tanggal_benar:,} baris")
         
@@ -44,7 +39,7 @@ def baca_data():
         st.write("Kolom yang tersedia:", list(df.columns))
         st.stop()
     
-    # === Baca jumlah ===
+    # ✅ Baca jumlah
     if "jumlah" in df.columns:
         df["jumlah"] = pd.to_numeric(df["jumlah"], errors="coerce").fillna(0)
         st.success(f"✅ Total nilai: Rp {df['jumlah'].sum():,.0f}")
@@ -52,13 +47,13 @@ def baca_data():
         st.error("❌ Kolom 'jumlah' TIDAK DITEMUKAN!")
         st.stop()
     
-    # === Baca jenis ===
+    # ✅ Baca jenis
     if "jenis" in df.columns:
         df["jenis"] = df["jenis"].astype(str).str.strip()
     else:
         df["jenis"] = "DONASI"
     
-    # === Buat kolom tahun & bulan ===
+    # ✅ Buat kolom tahun & bulan
     df["tahun"] = df["tanggal"].dt.year
     df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
     
@@ -67,12 +62,12 @@ def baca_data():
 st.info("🔄 Sedang memuat data...")
 df = baca_data()
 
-# Periksa apakah ada tanggal yang terbaca
+# Periksa tanggal
 jumlah_tanggal_benar = df["tanggal"].notna().sum()
 if jumlah_tanggal_benar == 0:
-    st.error("❌ TANGGAL MASIH TIDAK TERBACA!")
+    st.error("❌ TANGGAL TIDAK TERBACA!")
     st.write("📋 5 Baris pertama kolom tanggal:")
-    st.dataframe(df[["tanggal", "tanggal_bersih"]].head(10))
+    st.dataframe(df[["tanggal"]].head(10))
     st.stop()
 
 st.success(f"✅ DATA SIAP! Total {len(df):,} baris | {df['tanggal'].min().date()} s/d {df['tanggal'].max().date()}")
