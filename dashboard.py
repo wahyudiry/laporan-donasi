@@ -10,50 +10,54 @@ st.title("📊 LAPORAN DONASI & KOTAK AMAL")
 st.markdown("---")
 
 # ==============================================
-# 📖 BACA DATA — BERDASARKAN POSISI KOLOM
+# 🧹 FUNGSI BERSIHKAN
+# ==============================================
+def bersihkan_teks(x):
+    if pd.isna(x): return ""
+    return str(x).replace('"', '').replace("\\", "").strip()
+
+def bersihkan_angka(x):
+    if pd.isna(x): return 0
+    teks = str(x).replace('"', '').replace("\\", "").replace(",", "").replace(".", "").strip()
+    try: return float(teks)
+    except: return 0
+
+# ==============================================
+# 📖 BACA DATA — DENGAN PEMISAH YANG BENAR!
 # ==============================================
 @st.cache_data
 def baca_data():
     df = pd.read_csv(
         "data_laporan.csv",
-        sep=",",
+        sep=",",              # ← Sesuai berkas yang disimpan
         encoding="utf-8",
         on_bad_lines="skip",
         low_memory=False
     )
     
-    # Tampilkan nama kolom agar bisa diperiksa
-    kolom_ada = list(df.columns)
-    st.info(f"📋 Kolom terbaca: {kolom_ada[:10]}")  # tampilkan 10 kolom pertama
+    st.info(f"📋 Jumlah kolom terbaca: {len(df.columns)}")
+    st.info(f"📋 Nama kolom: {list(df.columns[:10])}")
     
-    # Cari kolom tanggal — dengan berbagai kemungkinan nama
-    nama_kolom = list(df.columns)
-    kolom_tanggal = None
-    kolom_jumlah = None
-    kolom_jenis = None
-    
-    for i, nm in enumerate(nama_kolom):
-        if str(nm).strip().lower() in ["tanggal", "tgl", "date"]:
-            kolom_tanggal = nm
-        if str(nm).strip().lower() in ["jumlah", "nilai", "total"]:
-            kolom_jumlah = nm
-        if str(nm).strip().lower() in ["jenis", "tipe"]:
-            kolom_jenis = nm
-    
-    # Kalau tidak ketemu nama kolom, pakai posisi
-    if kolom_tanggal is None and len(nama_kolom) >= 3:
-        kolom_tanggal = nama_kolom[2]  # posisi kolom tanggal
-    if kolom_jumlah is None and len(nama_kolom) >= 9:
-        kolom_jumlah = nama_kolom[8]   # posisi kolom jumlah
-    
-    # Proses tanggal
-    df["tanggal"] = pd.to_datetime(df[kolom_tanggal], errors="coerce")
-    df["jumlah"] = pd.to_numeric(df[kolom_jumlah], errors="coerce").fillna(0)
-    
-    if kolom_jenis:
-        df["jenis"] = df[kolom_jenis].astype(str)
+    # ✅ Ambil berdasarkan NAMA kolom (sesuai kode yang menyimpan data)
+    if "tanggal" in df.columns:
+        df["tanggal"] = pd.to_datetime(df["tanggal"], errors="coerce")
+        st.success(f"✅ Kolom tanggal terbaca! Contoh: {df['tanggal'].dropna().iloc[0] if len(df['tanggal'].dropna())>0 else 'tidak ada'}")
     else:
-        df["jenis"] = "DONASI"  # nilai bawaan
+        st.error("❌ Kolom 'tanggal' TIDAK DITEMUKAN!")
+        st.write("Kolom yang tersedia:", list(df.columns))
+        st.stop()
+    
+    if "jumlah" in df.columns:
+        df["jumlah"] = df["jumlah"].apply(bersihkan_angka)
+        st.success(f"✅ Kolom jumlah terbaca! Total: Rp {df['jumlah'].sum():,.0f}")
+    else:
+        st.error("❌ Kolom 'jumlah' TIDAK DITEMUKAN!")
+        st.stop()
+    
+    if "jenis" in df.columns:
+        df["jenis"] = df["jenis"].astype(str)
+    else:
+        df["jenis"] = "DONASI"
     
     df["tahun"] = df["tanggal"].dt.year
     df["bulan"] = df["tanggal"].dt.strftime("%Y-%m")
@@ -63,9 +67,9 @@ def baca_data():
 st.info("🔄 Sedang memuat data...")
 df = baca_data()
 
-# Periksa apakah tanggal terbaca
+# Periksa data tanggal
 if df["tanggal"].isna().sum() == len(df):
-    st.error("❌ Kolom tanggal belum terbaca dengan benar!")
+    st.error("❌ SEMUA tanggal tidak terbaca!")
     st.write("📋 5 Baris pertama berkas Anda:")
     st.dataframe(df.head(5))
     st.stop()
@@ -82,6 +86,7 @@ jenis_pilih = st.sidebar.multiselect("Jenis Data", jenis_unik, default=jenis_uni
 
 tahun_tersedia = sorted(df["tahun"].dropna().unique().astype(int))
 bulan_tersedia = sorted(df["bulan"].dropna().unique())
+
 tahun_pilih = st.sidebar.multiselect("Pilih Tahun", tahun_tersedia, default=tahun_tersedia)
 bulan_pilih = st.sidebar.multiselect("Pilih Bulan", bulan_tersedia, default=bulan_tersedia)
 
@@ -95,6 +100,7 @@ df_filter = df[
 # 💵 RINGKASAN ANGKA
 # ==============================================
 col1, col2, col3, col4 = st.columns(4)
+
 total_donasi = df_filter[df_filter["jenis"]=="DONASI"]["jumlah"].sum()
 total_kotak = df_filter[df_filter["jenis"].str.contains("KOTAK|kotak", case=False, na=False)]["jumlah"].sum()
 total_semua = df_filter["jumlah"].sum()
